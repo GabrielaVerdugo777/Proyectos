@@ -2,8 +2,6 @@
 #include <cstdlib> // para usar abs y system("pause")
 #include <cctype>  // por si se rinden (tolower)
 #include <string>  // para el historial de partidas y las direcciones
-#include <conio.h> // para leer las flechas del teclado con _getch()
-#include <chrono>  // para el temporizador de la partida
 
 using namespace std;
 
@@ -16,47 +14,8 @@ const string reset = "\033[0m";
 string hist[100];
 int totalPartidas = 0;
 
-// lee una tecla de flecha del teclado (ignora otras teclas y vuelve a pedir)
-int leerFlecha() {
-    while (true) {
-        int t = _getch();
-        if (t == 0 || t == 224) { // en windows las flechas mandan 2 bytes seguidos
-            int t2 = _getch();
-            if (t2 == 72 || t2 == 80 || t2 == 75 || t2 == 77) {
-                return t2; // 72 arriba, 80 abajo, 75 izquierda, 77 derecha
-            }
-        }
-        cout << "\nEsa no es una tecla de flecha, intenta de nuevo: ";
-    }
-}
-
-// convierte segundos a formato mm:ss para mostrar los tiempos
-string formatoTiempo(double segundos) {
-    if (segundos < 0) {
-        segundos = 0;
-    }
-    int totalSeg = (int)segundos;
-    int min = totalSeg / 60;
-    int seg = totalSeg % 60;
-    string segTxt = (seg < 10) ? ("0" + to_string(seg)) : to_string(seg);
-    return to_string(min) + ":" + segTxt;
-}
-
-// segundos transcurridos desde un punto en el tiempo hasta ahora
-double segundosDesde(chrono::steady_clock::time_point desde) {
-    return chrono::duration<double>(chrono::steady_clock::now() - desde).count();
-}
-
 // muestra el tablero en pantalla
-void mostrarTab(char tab[8][8], int turno, double tiempoUsado[2], double transcurridoTurno, double tiempoPartida) {
-    // tiempo restante de cada jugador (2 minutos = 120 segundos maximo cada uno)
-    double restante1 = 120.0 - (tiempoUsado[0] + (turno == 1 ? transcurridoTurno : 0.0));
-    double restante2 = 120.0 - (tiempoUsado[1] + (turno == 2 ? transcurridoTurno : 0.0));
-
-    cout << "\nTiempo de partida: " << formatoTiempo(tiempoPartida) << "\n";
-    cout << "Tiempo jugador 1: " << formatoTiempo(restante1);
-    cout << "     Tiempo jugador 2: " << formatoTiempo(restante2) << "\n";
-
+void mostrarTab(char tab[8][8], int turno) {
     cout << "\n    0   1   2   3   4   5   6   7\n";
     cout << "  ---------------------------------\n";
     for (int i = 0; i < 8; i++) {
@@ -246,16 +205,10 @@ void jugar() {
     string movsPartida = "";
     int numMovimiento = 1;
 
-    // temporizador: desde el inicio de la partida y el tiempo usado por cada jugador
-    // (indice 0 = jugador 1, indice 1 = jugador 2), maximo 2 minutos (120 seg) cada uno
-    auto inicioPartida = chrono::steady_clock::now();
-    auto inicioTurno = chrono::steady_clock::now();
-    double tiempoUsado[2] = { 0.0, 0.0 };
-
     iniciarTab(tab);
 
     while (activo) {
-        mostrarTab(tab, turno, tiempoUsado, segundosDesde(inicioTurno), segundosDesde(inicioPartida));
+        mostrarTab(tab, turno);
 
         // revisamos de una vez si hay captura obligatoria en el tablero
         bool debeComer = tieneCap(tab, turno);
@@ -292,9 +245,7 @@ void jugar() {
             if (!puedeCom(tab, fOrig, cOrig, turno)) {
                 cout << "\nLa ficha ya no tiene mas saltos posibles\n";
                 capCurso = false;
-                tiempoUsado[turno - 1] += segundosDesde(inicioTurno);
                 turno = (turno == 1) ? 2 : 1;
-                inicioTurno = chrono::steady_clock::now();
                 continue;
             }
             cout << "Sigues comiendo con la misma ficha en fila " << fOrig << ", columna " << cOrig << "\n";
@@ -335,21 +286,21 @@ void jugar() {
 
         char fichaAct = tab[fOrig][cOrig];
 
-        // preguntamos la direccion vertical con flechas, solo si es dama
+        // preguntamos adelante/atras solo si es dama
         int dirVer;
         if (fichaAct == 'O' || fichaAct == 'X') {
-            cout << "Presiona una flecha (arriba o abajo) para la direccion vertical: ";
-            int flechaV = leerFlecha();
+            string vert;
+            cout << "Hacia adelante o hacia atras? (adelante/ade/atras): ";
+            cin >> vert;
 
-            if (flechaV == 72) {       // arriba
-                dirVer = -1;
-            } else if (flechaV == 80) { // abajo
-                dirVer = 1;
+            if (vert == "adelante" || vert == "ade") {
+                dirVer = (turno == 1) ? -1 : 1;
+            } else if (vert == "atras") {
+                dirVer = (turno == 1) ? 1 : -1;
             } else {
-                cout << "\n\nError, esa flecha es horizontal, presiona arriba o abajo.\n\n";
+                cout << "\nError, escribe adelante/ade o atras.\n\n";
                 continue;
             }
-            cout << "\n";
         } else {
             if (fichaAct == 'o') {
                 dirVer = -1;
@@ -358,32 +309,18 @@ void jugar() {
             }
         }
 
-        cout << "Presiona una flecha (izquierda o derecha) para la direccion horizontal: ";
-        int flechaH = leerFlecha();
+        string horiz;
+        cout << "Hacia la izquierda o hacia la derecha? (izq/der): ";
+        cin >> horiz;
 
         int dirHor;
-        if (flechaH == 75) {       // izquierda
+        if (horiz == "izquierda" || horiz == "izq") {
             dirHor = -1;
-        } else if (flechaH == 77) { // derecha
+        } else if (horiz == "derecha" || horiz == "der") {
             dirHor = 1;
         } else {
-            cout << "\n\nError, esa flecha es vertical, presiona izquierda o derecha.\n\n";
+            cout << "\nError, escribe izq/izquierda o der/derecha.\n\n";
             continue;
-        }
-        cout << "\n";
-
-        // revisamos si a este jugador se le acabo su tiempo (2 minutos maximo cada uno)
-        if (tiempoUsado[turno - 1] + segundosDesde(inicioTurno) >= 120.0) {
-            mostrarTab(tab, turno, tiempoUsado, segundosDesde(inicioTurno), segundosDesde(inicioPartida));
-            int ganadorPorTiempo = (turno == 1) ? 2 : 1;
-            cout << "\nSe acabo tu tiempo (2 minutos)! Pierde el jugador " << turno
-                 << ", gana el jugador " << ganadorPorTiempo << "\n";
-            if (totalPartidas < 100) {
-                hist[totalPartidas] = "Partida " + to_string(totalPartidas + 1) + ": Gana Jugador " + to_string(ganadorPorTiempo) + " (Tiempo agotado)\nMovimientos:\n" + movsPartida;
-                totalPartidas++;
-            }
-            activo = false;
-            break;
         }
 
         // si hay que comer el salto es de 2 casillas, si no pues es de 1
@@ -488,7 +425,7 @@ void jugar() {
         }
 
         if (rosas == 0) {
-            mostrarTab(tab, turno, tiempoUsado, segundosDesde(inicioTurno), segundosDesde(inicioPartida));
+            mostrarTab(tab, turno);
             cout << "\nJuego terminado, gana el jugador 2 (fichas verdes)\n";
             if (totalPartidas < 100) {
                 hist[totalPartidas] = "Partida " + to_string(totalPartidas + 1) + ": Gana Jugador 2\nMovimientos:\n" + movsPartida;
@@ -498,7 +435,7 @@ void jugar() {
             break;
         }
         if (verdes == 0) {
-            mostrarTab(tab, turno, tiempoUsado, segundosDesde(inicioTurno), segundosDesde(inicioPartida));
+            mostrarTab(tab, turno);
             cout << "\nJuego terminado, gana el Jugador 1 (fichas rosas)\n";
             if (totalPartidas < 100) {
                 hist[totalPartidas] = "Partida " + to_string(totalPartidas + 1) + ": Gana Jugador 1\nMovimientos:\n" + movsPartida;
@@ -531,18 +468,16 @@ void jugar() {
             break;
         }
 
-        // cambiar de turno y acumular el tiempo que uso el jugador que acaba de jugar
-        tiempoUsado[turno - 1] += segundosDesde(inicioTurno);
+        // cambiar de turno
         if (turno == 1) {
             turno = 2;
         } else {
             turno = 1;
         }
-        inicioTurno = chrono::steady_clock::now();
 
         // verificar si el jugador se queda sin movimientos
         if (!tieneMov(tab, turno)) {
-            mostrarTab(tab, turno, tiempoUsado, segundosDesde(inicioTurno), segundosDesde(inicioPartida));
+            mostrarTab(tab, turno);
             cout << "\nJuego terminado, jugador acorralado sin movimientos\n";
             if (totalPartidas < 100) {
                 if (turno == 1) {
